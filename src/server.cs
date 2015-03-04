@@ -61,48 +61,49 @@ namespace TCPServer
 
     class Server
     {
-        delegate void AcceptThreadDelegate(TcpListener listener);
-        delegate void TalkThreadDelegate(TcpClient client, ServerState serverState);
+        delegate void TalkThreadDelegate(TcpClient client);
+
+        private ServerState serverState;
         
-        public static void Main(string[] args)
+        private Server(int maxConnections, int currentFactor)
         {
-            IPEndPoint ipAdd = new IPEndPoint(IPAddress.Parse("127.0.0.1"), 8888);
-            TcpListener listener = new TcpListener(ipAdd);
-            listener.Start(0);
-            Console.WriteLine("start listening at port 8888");
-
-            var acceptThreadDelegate = new AcceptThreadDelegate(accept);
-            acceptThreadDelegate.BeginInvoke(listener, null, null);
-
-            Console.WriteLine("press a key to finish");
-            Console.ReadLine();
-            listener.Stop();
+            this.serverState = ServerState.GetServerState(maxConnections, currentFactor);
         }
 
-        private static void accept(TcpListener listener)
+        public static Server GetServer(int maxConnections, int currentFactor)
         {
-            ServerState serverState = ServerState.GetServerState(2, 2);
+            return new Server(maxConnections, currentFactor);
+        }
+
+        private ServerState getServerState()
+        {
+            return this.serverState;
+        }
+
+        public void Accept(TcpListener listener)
+        {
             while (true)
             {
                 TcpClient client = listener.AcceptTcpClient();
                 Console.WriteLine("client connected");
 
-                var talkThreadDelegate = new TalkThreadDelegate(talk);
-                talkThreadDelegate.BeginInvoke(client, serverState, new AsyncCallback(onTalkThreadFinished), client); 
+                var talkThreadDelegate = new TalkThreadDelegate(this.talk);
+                talkThreadDelegate.BeginInvoke(client, new AsyncCallback(this.onTalkThreadFinished), client); 
 
                 Thread.Sleep(100);
             }
         }
 
-        private static void onTalkThreadFinished(IAsyncResult ar)
+        private void onTalkThreadFinished(IAsyncResult ar)
         {
             TcpClient client = (TcpClient) ar.AsyncState;
             client.Close();
             Console.WriteLine("talk thread is finished");
         }
 
-        private static void talk(TcpClient client, ServerState serverState)
+        private void talk(TcpClient client)
         {
+            ServerState serverState = this.getServerState();
             if (client.Connected)
             {
                 serverState.AddClient(client);
@@ -138,6 +139,28 @@ namespace TCPServer
                 serverState.removeClient(client);
                 sReader.Close();
             }
+        }
+
+    }
+
+    class EntryPoint
+    {
+        delegate void AcceptThreadDelegate(TcpListener listener);
+
+        public static void Main(string[] args)
+        {
+            IPEndPoint ipAdd = new IPEndPoint(IPAddress.Parse("127.0.0.1"), 8888);
+            TcpListener listener = new TcpListener(ipAdd);
+            listener.Start(0);
+            Console.WriteLine("start listening at port 8888");
+
+            Server server = Server.GetServer(2, 2);
+            var acceptThreadDelegate = new AcceptThreadDelegate(server.Accept);
+            acceptThreadDelegate.BeginInvoke(listener, null, null);
+
+            Console.WriteLine("press a key to finish");
+            Console.ReadLine();
+            listener.Stop();
         }
     }
 }
