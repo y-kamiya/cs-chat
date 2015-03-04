@@ -107,11 +107,18 @@ namespace TCPServer
             ServerState serverState = this.getServerState();
             if (client.Connected)
             {
-                serverState.AddClient(client);
                 NetworkStream netStream = client.GetStream();
-                StreamReader sReader = new StreamReader(netStream, Encoding.UTF8);
+
+                bool isAdded = serverState.AddClient(client);
+                if (!isAdded)
+                {
+                    string msg = "too many connections\n";
+                    this.sendMessage(msg, netStream);
+                    return;
+                }
 
                 string str = String.Empty;
+                StreamReader sReader = new StreamReader(netStream, Encoding.UTF8);
 
                 do
                 {
@@ -160,8 +167,8 @@ namespace TCPServer
 
         private void broadcastFactorChange(int newFactor)
         {
-            string msg = "new factor is ";
-            byte[] sendBytes = Encoding.UTF8.GetBytes(msg + newFactor.ToString() + "\n");
+            string msg = "new factor is " + newFactor.ToString() + "\n";
+            byte[] sendBytes = Encoding.UTF8.GetBytes(msg);
             List<TcpClient> clientList = this.getServerState().GetClientList();
             clientList.ForEach(client => {
                 client.GetStream().Write(sendBytes, 0, sendBytes.Length);
@@ -171,14 +178,18 @@ namespace TCPServer
         private void respondAnswer(int num, NetworkStream netStream)
         {
             int answer = num * this.getServerState().GetCurrentFactor();
-            byte[] sendBytes = Encoding.UTF8.GetBytes(answer.ToString() + "\n");
-            netStream.Write(sendBytes, 0, sendBytes.Length);
+            this.sendMessage(answer.ToString(), netStream);
         }
 
         private void respondUsage(NetworkStream netStream)
         {
             string msg = "you should enter numbers or *N to change factor\n";
-            byte[] sendBytes = Encoding.UTF8.GetBytes(msg.ToString());
+            this.sendMessage(msg, netStream);
+        }
+
+        private void sendMessage(string msg, NetworkStream netStream)
+        {
+            byte[] sendBytes = Encoding.UTF8.GetBytes(msg);
             netStream.Write(sendBytes, 0, sendBytes.Length);
         }
 
