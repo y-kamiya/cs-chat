@@ -1,5 +1,6 @@
 using System;
 using System.Text;
+using System.Tuple;
 using System.Net;
 using System.Net.Sockets;
 using System.IO;
@@ -115,30 +116,70 @@ namespace TCPServer
                 do
                 {
                     str = sReader.ReadLine();
-                    if (str == null)
-                    {
-                        break;
-                    }
+                    if (str == null) break;
                     Console.WriteLine(str);
 
-                    int num;
-                    byte[] sendBytes;
-                    bool isInt = int.TryParse(str, out num);
-                    if (isInt)
-                    {
-                        int sendNum = num * serverState.GetCurrentFactor();
-                        sendBytes = Encoding.UTF8.GetBytes(sendNum.ToString() + "\n");
-                    } else
-                    {
-                        string msg = "you should enter numbers\n";
-                        sendBytes = Encoding.UTF8.GetBytes(msg.ToString());
+                    Tuple<int,int> result = checkInput(str);
+                    if (result.Item1 == 1) {
+                        this.respondAnswer(result.Item2, netStream);
+                    } else if (result.Item1 == 2) {
+                        int newFactor = result.Item2;
+                        serverState.SetCurrentFactor(newFactor);
+                        this.broadcastFactorChange(newFactor);
+                    } else {
+                        this.respondUsage(netStream);
                     }
-                    netStream.Write(sendBytes, 0, sendBytes.Length);
                 } while (!str.Equals("quit"));
 
                 serverState.removeClient(client);
                 sReader.Close();
             }
+        }
+
+        private Tuple<int,int> checkInput(string input)
+        {
+            int num;
+            if (int.TryParse(input, out num)) 
+            {
+                return Tuple.Create<int,int>(1, num);
+            }
+
+            if (input.Length < 2) 
+            {
+                return Tuple.Create<int,int>(0, 0);
+            }
+
+            string str = input.Substring(1);
+            if (input[0] == '*' && int.TryParse(str, out num)) 
+            {
+                return Tuple.Create<int,int>(2, num);
+            }
+
+            return Tuple.Create<int,int>(0, 0);
+        }
+
+        private void broadcastFactorChange(int newFactor)
+        {
+            string msg = "new factor is ";
+            byte[] sendBytes = Encoding.UTF8.GetBytes(msg + newFactor.ToString() + "\n");
+            List<TcpClient> clientList = this.getServerState().GetClientList();
+            clientList.ForEach(client => {
+                client.GetStream().Write(sendBytes, 0, sendBytes.Length);
+            });
+        }
+
+        private void respondAnswer(int num, NetworkStream netStream)
+        {
+            int answer = num * this.getServerState().GetCurrentFactor();
+            byte[] sendBytes = Encoding.UTF8.GetBytes(answer.ToString() + "\n");
+            netStream.Write(sendBytes, 0, sendBytes.Length);
+        }
+
+        private void respondUsage(NetworkStream netStream)
+        {
+            string msg = "you should enter numbers or *N to change factor\n";
+            byte[] sendBytes = Encoding.UTF8.GetBytes(msg.ToString());
+            netStream.Write(sendBytes, 0, sendBytes.Length);
         }
 
     }
