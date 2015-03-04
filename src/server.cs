@@ -4,13 +4,66 @@ using System.Net;
 using System.Net.Sockets;
 using System.IO;
 using System.Threading;
+using System.Collections.Generic;
 
 namespace TCPServer
 {
+    class ServerState
+    {
+        private int maxConnections;
+        private int currentFactor;
+        private List<TcpClient> clientList;
+        // private ReaderWriterLock rwLockClientList = new ReaderWriterLock();
+
+        private ServerState(int maxConnections, int currentFactor)
+        {
+            this.maxConnections = maxConnections;
+            this.currentFactor = currentFactor;
+            this.clientList = new List<TcpClient>();
+        }
+
+        public static ServerState GetServerState(int maxConnections, int currentFactor)
+        {
+            return new ServerState(maxConnections, currentFactor);
+        }
+
+        public int GetCurrentFactor()
+        {
+            return this.currentFactor;
+        }
+
+        public void SetCurrentFactor(int factor)
+        {
+            this.currentFactor = factor;
+        }
+
+        public List<TcpClient> GetClientList()
+        {
+            return this.clientList;
+        }
+
+        public bool AddClient(TcpClient client)
+        {
+            int count = this.clientList.Count;
+            if (this.maxConnections <= count)
+            {
+                return false;
+            }
+            this.clientList.Add(client);
+            return true;
+        }
+
+        public void removeClient(TcpClient client)
+        {
+            this.clientList.Remove(client);
+        }
+    }
+
     class Server
     {
-        private static TcpClient client;
-
+        delegate void AcceptThreadDelegate(TcpListener listener);
+        delegate void TalkThreadDelegate(TcpClient client, ServerState serverState);
+        
         public static void Main(string[] args)
         {
             IPEndPoint ipAdd = new IPEndPoint(IPAddress.Parse("127.0.0.1"), 8888);
@@ -18,25 +71,41 @@ namespace TCPServer
             listener.Start(0);
             Console.WriteLine("start listening at port 8888");
 
-            TcpClient c = listener.AcceptTcpClient();
-            TCPServer.Server.client = c;
-            Console.WriteLine("client connected");
+            var acceptThreadDelegate = new AcceptThreadDelegate(accept);
+            acceptThreadDelegate.BeginInvoke(listener, null, null);
 
-            Thread thread = new Thread(new ThreadStart(TCPServer.Server.talk));
-            thread.Start();
-
-            Thread.Sleep(30000);
             Console.WriteLine("press a key to finish");
             Console.ReadLine();
             listener.Stop();
         }
 
-        public static void talk()
+        private static void accept(TcpListener listener)
         {
-            TcpClient client = TCPServer.Server.client;
+            ServerState serverState = ServerState.GetServerState(2, 2);
+            while (true)
+            {
+                TcpClient client = listener.AcceptTcpClient();
+                Console.WriteLine("client connected");
+
+                var talkThreadDelegate = new TalkThreadDelegate(talk);
+                talkThreadDelegate.BeginInvoke(client, serverState, new AsyncCallback(onTalkThreadFinished), client); 
+
+                Thread.Sleep(100);
+            }
+        }
+
+        private static void onTalkThreadFinished(IAsyncResult ar)
+        {
+            TcpClient client = (TcpClient) ar.AsyncState;
+            client.Close();
+            Console.WriteLine("talk thread is finished");
+        }
+
+        private static void talk(TcpClient client, ServerState serverState)
+        {
             if (client.Connected)
             {
-                Console.WriteLine("bbbbbbb");
+                serverState.AddClient(client);
                 NetworkStream netStream = client.GetStream();
                 StreamReader sReader = new StreamReader(netStream, Encoding.UTF8);
 
@@ -56,18 +125,18 @@ namespace TCPServer
                     bool isInt = int.TryParse(str, out num);
                     if (isInt)
                     {
-                        int sendNum = num * 2;
-                        sendBytes = Encoding.UTF8.GetBytes(sendNum.ToString());
+                        int sendNum = num * serverState.GetCurrentFactor();
+                        sendBytes = Encoding.UTF8.GetBytes(sendNum.ToString() + "\n");
                     } else
                     {
-                        string msg = "you should enter numbers";
+                        string msg = "you should enter numbers\n";
                         sendBytes = Encoding.UTF8.GetBytes(msg.ToString());
                     }
                     netStream.Write(sendBytes, 0, sendBytes.Length);
                 } while (!str.Equals("quit"));
 
+                serverState.removeClient(client);
                 sReader.Close();
-                client.Close();
             }
         }
     }
