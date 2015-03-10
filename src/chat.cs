@@ -281,10 +281,9 @@ namespace TCPServer
                 }
                 finally
                 {
-                    client.Close();
-                    receiveThread.Join();
                     serverState.RemoveClient(clientState.GetName());
                     sReader.Close();
+                    client.Close();
                 }
             }
         }
