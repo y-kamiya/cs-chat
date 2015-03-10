@@ -203,14 +203,17 @@ namespace TCPServer
         {
             while (true) 
             {
-                Console.WriteLine("input your name!");
+                this.response("input your name!\n", client.GetStream());
+                Console.WriteLine("[debug] input your name!");
                 StreamReader sReader = new StreamReader(client.GetStream(), Encoding.UTF8);
                 string name = sReader.ReadLine();
                 ClientState clientState = ClientState.Create(name, client);
                 bool ok = serverState.AddClient(name, clientState);
                 if (ok)
                 {
-                    Console.WriteLine("hi, " + name);
+                    string msg = "hi, " + name + "\n";
+                    Console.WriteLine(msg);
+                    this.response("[debug] " + msg, client.GetStream());
                     return clientState;
                 }
                 else 
