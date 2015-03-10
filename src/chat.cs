@@ -10,7 +10,7 @@ using System.Collections.Generic;
 
 namespace TCPServer
 {
-    class Message
+    public class Message
     {
         public enum Type { Command, Notice, Tell, Broadcast, Quit, Unknown };
 
