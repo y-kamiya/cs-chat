@@ -246,7 +246,7 @@ namespace TCPServer
                             clientState.WriteChan(Message.Create(str, clientState.GetName()));
                         }
                     }
-                    catch (Exception e) {
+                    catch (Exception) {
                         Console.WriteLine("receive thread is aborted");
                     }
                 };
@@ -265,7 +265,7 @@ namespace TCPServer
                             }
                         }
                     }
-                    catch (ThreadAbortException e) {
+                    catch (ThreadAbortException) {
                         Console.WriteLine("server thread is aborted");
                     }
                 };
@@ -318,6 +318,8 @@ namespace TCPServer
                 }
                 else if (parsedMessage.GetMessageType() == Message.Type.Quit)
                 {
+                    string msg = "FINISHED";
+                    this.responseToClient(clientState, msg);
                     return true;
                 }
                 else if (parsedMessage.GetMessageType() == Message.Type.Unknown)
