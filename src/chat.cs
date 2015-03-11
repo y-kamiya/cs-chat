@@ -196,7 +196,7 @@ namespace TCPServer
         {
             TcpClient client = (TcpClient) ar.AsyncState;
             client.Close();
-            Console.WriteLine("talk thread is finished");
+            Console.WriteLine("talk is finished");
         }
 
         private ClientState addClient(ServerState serverState, TcpClient client)
@@ -212,8 +212,8 @@ namespace TCPServer
                 if (ok)
                 {
                     string msg = "hi, " + name + "\n";
-                    Console.WriteLine(msg);
-                    this.response("[debug] " + msg, client.GetStream());
+                    Console.WriteLine("[debug] " + msg);
+                    this.response(msg, client.GetStream());
                     return clientState;
                 }
                 else 
@@ -242,6 +242,7 @@ namespace TCPServer
                         while (true)
                         {
                             string str = sReader.ReadLine();
+                            Console.WriteLine("*" + clientState.GetName() + "* " + str);
                             if (str.Length == 0) continue;
                             clientState.WriteChan(Message.Create(str, clientState.GetName()));
                         }
@@ -258,7 +259,7 @@ namespace TCPServer
                         while (true)
                         {
                             Message message = clientState.ReadChan();
-                            Console.WriteLine("[debug] <messge> type: " + message.GetMessageType() + ", body: " + message.GetBody());
+                            // Console.WriteLine("[debug] <messge> type: " + message.GetMessageType() + ", body: " + message.GetBody());
                             bool isExit = handleMessage(serverState, clientState, message);
                             if (isExit) {
                                 break;
@@ -272,19 +273,13 @@ namespace TCPServer
 
                 Thread receiveThread = new Thread(receive);
                 Thread serverThread = new Thread(server);
-                try
-                {
-                    receiveThread.Start();
-                    serverThread.Start();
+                receiveThread.Start();
+                serverThread.Start();
 
-                    serverThread.Join();
-                }
-                finally
-                {
-                    serverState.RemoveClient(clientState.GetName());
-                    sReader.Close();
-                    client.Close();
-                }
+                serverThread.Join();
+
+                serverState.RemoveClient(clientState.GetName());
+                sReader.Close();
             }
         }
 
@@ -310,7 +305,7 @@ namespace TCPServer
             if (message.GetMessageType() == Message.Type.Command)
             {
                 Message parsedMessage = message.Parse();
-                Console.WriteLine("[debug]<parsedMessage> type: " + parsedMessage.GetMessageType() + ", body: " + parsedMessage.GetBody());
+                // Console.WriteLine("[debug]<parsedMessage> type: " + parsedMessage.GetMessageType() + ", from: " + parsedMessage.GetFrom() + ", body: " + parsedMessage.GetBody());
                 if (parsedMessage.GetMessageType() == Message.Type.Tell)
                 {
                     // this.tell(serverState, clientState, parsedMessage);
