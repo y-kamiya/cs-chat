@@ -178,26 +178,32 @@ namespace TCPServer
             return this.serverState;
         }
 
-        public void Accept(TcpListener listener)
+        public void Accept(object data)
         {
+            TcpListener listener = (TcpListener)data;
             while (true)
             {
                 TcpClient client = listener.AcceptTcpClient();
                 Console.WriteLine("client connected");
 
-                var talkThreadDelegate = new TalkThreadDelegate(this.talk);
-                talkThreadDelegate.BeginInvoke(client, new AsyncCallback(this.onTalkThreadFinished), client); 
+                Thread thread = new Thread(new ParameterizedThreadStart(this.talk));
+                thread.IsBackground = true;
+                thread.Start(client);
+                // var talkThreadDelegate = new TalkThreadDelegate(this.talk);
+                // talkThreadDelegate.BeginInvoke(client, new AsyncCallback(this.onTalkThreadFinished), client); 
 
                 Thread.Sleep(100);
             }
         }
 
+        /*
         private void onTalkThreadFinished(IAsyncResult ar)
         {
             TcpClient client = (TcpClient) ar.AsyncState;
             client.Close();
             Console.WriteLine("talk is finished");
         }
+        */
 
         private ClientState addClient(ServerState serverState, TcpClient client)
         {
@@ -224,8 +230,9 @@ namespace TCPServer
             }
         }
 
-        private void talk(TcpClient client)
+        private void talk(object data)
         {
+            TcpClient client = (TcpClient)data;
             ServerState serverState = this.getServerState();
             if (client.Connected)
             {
@@ -280,6 +287,8 @@ namespace TCPServer
 
                 serverState.RemoveClient(clientState.GetName());
                 sReader.Close();
+                client.Close();
+                Console.WriteLine("talk is finished");
             }
         }
 
@@ -375,8 +384,6 @@ namespace TCPServer
 
     class EntryPoint
     {
-        delegate void AcceptThreadDelegate(TcpListener listener);
-
         public static void Main(string[] args)
         {
             IPEndPoint ipAdd = new IPEndPoint(IPAddress.Parse("127.0.0.1"), 8888);
@@ -385,8 +392,9 @@ namespace TCPServer
             Console.WriteLine("start listening at port 8888");
 
             Server server = Server.GetServer();
-            var acceptThreadDelegate = new AcceptThreadDelegate(server.Accept);
-            acceptThreadDelegate.BeginInvoke(listener, null, null);
+            Thread acceptThread = new Thread(new ParameterizedThreadStart(server.Accept));
+            acceptThread.IsBackground = true;
+            acceptThread.Start(listener);
 
             Console.WriteLine("press a key to finish");
             Console.ReadLine();

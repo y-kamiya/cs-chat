@@ -20,11 +20,14 @@ namespace TCPClient
             int maxMessageCount = int.Parse(args[1]);
 
             WaitHandle[] waitHandles = new WaitHandle[clientCount];
+            for (int i = 0; i < clientCount; i++)
+            {
+                waitHandles[i] = new ManualResetEvent(false);
+            }
             Thread[] threads = new Thread[clientCount];
 
             for (int i = 0; i < clientCount; i++)
             {
-                waitHandles[i] = new ManualResetEvent(false);
                 ChatClient client = new ChatClient(i, clientCount, maxMessageCount, waitHandles);
                 threads[i] = new Thread(new ThreadStart(client.Connect));
                 threads[i].Start();
